@@ -3,13 +3,13 @@ crsh: A crab shell in Rust
 
 
 ## TODO
-- shell builtins: `cd`, `pwd`, `exit`, `echo`, `history`
 - piping between commands
 - redirect stdin/stdout/stderr to/from files
 - signal management (e.g. SIGINT w ctrl+c)
+- environment variables (`export`, `unset`)
+- shell builtins: `history`
 - EOF (ctrl + D)
 - quoting
-- environment variables (`export`, `unset`)
 - `&&`, `||`, `;`
 
 ## References
