@@ -19,8 +19,8 @@ fn main() {
             }
         }
         // Eval
-        let tokens = Crsh::parse(&input);
-        match Crsh::execute(tokens) {
+        let ast = Crsh::parse(&input);
+        match Crsh::execute(ast) {
             Ok(_) => (),
             Err(err) => {
                 eprintln!("Error: {}", err)
