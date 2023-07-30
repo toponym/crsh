@@ -16,9 +16,9 @@ pub struct Crsh {}
 impl Crsh{
 
     pub fn parse(input: &str) -> Node{
-        let commands: Vec<Node> = input.trim().split("|")
+        let commands: Vec<Node> = input.trim().split('|')
             .map(|x| x.split_whitespace().collect())
-            .map(|x| Node::Command(x))
+            .map(Node::Command)
             .collect();
         return Node::Pipeline(commands);
     }
@@ -40,7 +40,7 @@ impl Crsh{
     }
 
     fn execute_command(tokens: &[&str], stdin: Stdio, stdout: Stdio) -> Result<Option<Child>, &'static str>{
-        if tokens.len() == 0 {
+        if tokens.is_empty() {
             return Err("Empty command");
         }
         let command = tokens[0];
@@ -80,7 +80,7 @@ impl Crsh{
         }
         let new_dir = args[0];
         let absolute_new_dir = Path::new(new_dir);
-        match set_current_dir(&absolute_new_dir) {
+        match set_current_dir(absolute_new_dir) {
             Ok(_) => Ok(None),
             Err(_) => Err("Failed changing directory")
         }
@@ -110,7 +110,7 @@ impl Crsh{
             .spawn();
         match child_result {
             Ok(child) => Ok(Some(child)),
-            Err(_) => return Err("Failed spawning command")
+            Err(_) => Err("Failed spawning command")
         }
     }
 
