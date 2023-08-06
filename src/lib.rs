@@ -3,23 +3,36 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::env::set_current_dir;
 use std::str::FromStr;
-
+use std::mem::take;
+pub mod scanner;
+use crate::scanner::Token;
 
 #[derive(Debug, PartialEq)]
-pub enum Node<'a> {
-    Command(Vec<&'a str>),
-    Pipeline(Vec<Node<'a>>)
+pub enum Node {
+    Command(Vec<String>),
+    Pipeline(Vec<Node>)
 }
 
 pub struct Crsh {}
 
 impl Crsh{
 
-    pub fn parse(input: &str) -> Node{
-        let commands: Vec<Node> = input.trim().split('|')
-            .map(|x| x.split_whitespace().collect())
-            .map(Node::Command)
-            .collect();
+    pub fn parse(tokens: Vec<Token>) -> Node{
+        //TODO REFACTOR
+        let mut commands = vec!();
+        let mut command = vec!();
+        for token in tokens{
+            println!("token: {:?}",  token);
+            match token {
+                Token::Regular(tok) => command.push(tok),
+                Token::Pipe => {
+                    let command_node = Node::Command(take(&mut command));
+                    commands.push(command_node);
+                },
+                _ => unimplemented!()
+            }
+        }
+        commands.push(Node::Command(command));
         return Node::Pipeline(commands);
     }
 
@@ -29,7 +42,6 @@ impl Crsh{
         match node {
             Node::Pipeline(commands) => Self::pipeline_command(commands),
             Node::Command(toks) => {
-                // TODO remove command from being accessible from execute()?
                 let child_res = Self::execute_command(&toks, Stdio::inherit(), Stdio::inherit());
                 match child_res {
                     Ok(child_opt) => Self::collect_command_output(child_opt),
@@ -39,11 +51,11 @@ impl Crsh{
         }
     }
 
-    fn execute_command(tokens: &[&str], stdin: Stdio, stdout: Stdio) -> Result<Option<Child>, &'static str>{
+    fn execute_command(tokens: &Vec<String>, stdin: Stdio, stdout: Stdio) -> Result<Option<Child>, &'static str>{
         if tokens.is_empty() {
             return Err("Empty command");
         }
-        let command = tokens[0];
+        let command = tokens[0].as_str();
         let args = &tokens[1..];
         // TODO add piping for builtins
         match command {
@@ -74,25 +86,25 @@ impl Crsh{
         }
     }
 
-    fn cd_command(args: &[&str]) -> Result<Option<Child>, &'static str>{
+    fn cd_command(args: &[String]) -> Result<Option<Child>, &'static str>{
         if args.len() != 1{
             return Err("Too many arguments");
         }
-        let new_dir = args[0];
-        let absolute_new_dir = Path::new(new_dir);
+        let new_dir = &args[0];
+        let absolute_new_dir = Path::new(&new_dir);
         match set_current_dir(absolute_new_dir) {
             Ok(_) => Ok(None),
             Err(_) => Err("Failed changing directory")
         }
     }
 
-    fn exit_command(args: &[&str]) -> Result<Option<Child>, &'static str>{
+    fn exit_command(args: &[String]) -> Result<Option<Child>, &'static str>{
         let mut exit_code = 0;
         if args.len() > 1{
             return Err("Too many arguments");
         }
         if args.len() == 1{
-            match i32::from_str(args[0]) {
+            match i32::from_str(&args[0]) {
                 Ok(code) => exit_code = code,
                 Err(_) => return Err("Didn't pass numeric argument")
             }
@@ -101,7 +113,7 @@ impl Crsh{
     }
 
 
-    fn general_command(command: &str, args: &[&str], stdin: Stdio, stdout: Stdio) -> Result<Option<Child>, &'static str>
+    fn general_command(command: &str, args: &[String], stdin: Stdio, stdout: Stdio) -> Result<Option<Child>, &'static str>
     {
         let child_result = Command::new(command)
             .args(args)

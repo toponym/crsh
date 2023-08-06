@@ -1,6 +1,7 @@
 use std::io::{stdin, stdout, Write};
 use std::process::{exit};
 use crsh::Crsh;
+use crsh::scanner::Scanner;
 
 fn main() {
     loop {
@@ -19,8 +20,10 @@ fn main() {
             }
         }
         // Eval
-        let ast = Crsh::parse(&input);
-        match Crsh::execute(ast) {
+        let scanner = Scanner::new(input);
+        let tokens = scanner.scan_tokens();
+        let ast = Crsh::parse(tokens);
+        match Crsh::execute(ast){
             Ok(_) => (),
             Err(err) => {
                 eprintln!("Error: {}", err)
