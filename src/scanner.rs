@@ -1,35 +1,9 @@
 use std::collections::HashSet;
 use lazy_static::lazy_static;
+use crate::token::Token;
 
 lazy_static!{
     static ref SPECIAL_CHARACTERS: HashSet<char> = "$'\"\\#=[]!><|;{}()*?~&".chars().collect();
-}
-
-// ignore warnings for variants that aren't implemented yet
-#[allow(dead_code)]
-#[derive(Clone, Debug, PartialEq)]
-pub enum RedirectionType {
-    Read,
-    Write,
-    Append
-}
-
-// ignore warnings for variants that aren't implemented yet
-#[allow(dead_code)]
-#[derive(Clone, Debug, PartialEq)]
-pub enum Token {
-    Regular(String),
-    Expansion,
-    SingleQuote,
-    DoubleQuote,
-    Assignment,
-    Redirection(RedirectionType),
-    Pipe,
-    CommandSeparator,
-    SubshellStart,
-    SubshellEnd,
-    Home,
-    Background
 }
 
 pub struct Scanner {
@@ -54,6 +28,7 @@ impl Scanner {
                 self.tokens.push(token);
             }
         }
+        self.tokens.push(Token::EOF);
         self.tokens
     }
 
