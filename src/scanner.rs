@@ -39,7 +39,7 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    pub fn new<'a>(source: String) -> Self{
+    pub fn new(source: String) -> Self{
         Self{
             chars: source.chars().collect(),
             curr: 0,
@@ -89,7 +89,7 @@ impl Scanner {
     }
 
     
-    fn peek<'a>(&'a self) -> &'a char {
+    fn peek(& self) -> &char {
         &self.chars[self.curr]
     }
     
@@ -97,7 +97,7 @@ impl Scanner {
         self.curr >= self.chars.len()
     }
 
-    fn advance<'a>(&'a mut self) -> &'a char {
+    fn advance(& mut self) -> & char {
         let curr_char = &self.chars[self.curr];
         self.curr += 1;
         curr_char

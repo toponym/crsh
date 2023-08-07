@@ -33,7 +33,7 @@ impl Crsh{
             }
         }
         commands.push(Node::Command(command));
-        return Node::Pipeline(commands);
+        Node::Pipeline(commands)
     }
 
 
