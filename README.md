@@ -17,10 +17,10 @@ crsh: A crab shell in Rust
 
 ## Grammar
 ```
-pipeline ::= command> ( "|" command )*
+pipeline ::= command ( "|" command )*
 command ::= regular_char+
 ```
-A `regular_char` is not a Bash special character (`"$'\"\\#=[]!><|;{}()*?~&`). This isn't proper EBNF, but I chose to leave it like this for simplicity.
+A `regular_char` is a character that is not a Bash special character (`"$'\"\\#=[]!><|;{}()*?~&`). This isn't proper EBNF, but I chose to leave it like this for simplicity.
 ## References
 - [Build Your Own Shell using Rust](https://www.joshmcguigan.com/blog/build-your-own-shell-rust/)
 - [I/O Redirection in the Shell](https://thoughtbot.com/blog/input-output-redirection-in-the-shell)
