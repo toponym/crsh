@@ -2,6 +2,7 @@ use std::io::{stdin, stdout, Write};
 use std::process::{exit};
 use crsh::Crsh;
 use crsh::scanner::Scanner;
+use crsh::parser::Parser;
 
 fn main() {
     loop {
@@ -22,7 +23,8 @@ fn main() {
         // Eval
         let scanner = Scanner::new(input);
         let tokens = scanner.scan_tokens();
-        let ast = Crsh::parse(tokens);
+        let parser = Parser::new(tokens);
+        let ast = parser.parse();
         match Crsh::execute(ast){
             Ok(_) => (),
             Err(err) => {

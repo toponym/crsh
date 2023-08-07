@@ -3,39 +3,15 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::env::set_current_dir;
 use std::str::FromStr;
-use std::mem::take;
 pub mod scanner;
-use crate::scanner::Token;
-
-#[derive(Debug, PartialEq)]
-pub enum Node {
-    Command(Vec<String>),
-    Pipeline(Vec<Node>)
-}
+pub mod parser;
+pub mod token;
+pub mod ast;
+use crate::ast::Node;
 
 pub struct Crsh {}
 
 impl Crsh{
-
-    pub fn parse(tokens: Vec<Token>) -> Node{
-        //TODO REFACTOR
-        let mut commands = vec!();
-        let mut command = vec!();
-        for token in tokens{
-            println!("token: {:?}",  token);
-            match token {
-                Token::Regular(tok) => command.push(tok),
-                Token::Pipe => {
-                    let command_node = Node::Command(take(&mut command));
-                    commands.push(command_node);
-                },
-                _ => unimplemented!()
-            }
-        }
-        commands.push(Node::Command(command));
-        Node::Pipeline(commands)
-    }
-
 
     pub fn execute(node: Node) -> Result<Output, &'static str>{
         // TODO add better error handling + recovery
