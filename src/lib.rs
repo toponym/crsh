@@ -3,6 +3,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::env::set_current_dir;
 use std::str::FromStr;
+// TODO best way to handle namespaces?
 pub mod scanner;
 pub mod parser;
 pub mod token;
@@ -17,17 +18,20 @@ impl Crsh{
         // TODO add better error handling + recovery
         match node {
             Node::Pipeline(commands) => Self::pipeline_command(commands),
-            Node::Command(toks) => {
+            Node::Command(toks, _) => {
+                todo!("Add redirect");/*
                 let child_res = Self::execute_command(&toks, Stdio::inherit(), Stdio::inherit());
                 match child_res {
                     Ok(child_opt) => Self::collect_command_output(child_opt),
                     Err(_) => Err("Failed running command")
                 }
-            }           
+                */
+            },
+            Node::Redirect(_,_) => {todo!("Add redirect");}  
         }
     }
 
-    fn execute_command(tokens: &Vec<String>, stdin: Stdio, stdout: Stdio) -> Result<Option<Child>, &'static str>{
+    fn execute_command(tokens: &Vec<String>, redirect: &[Node], stdin: Stdio, stdout: Stdio) -> Result<Option<Child>, &'static str>{
         if tokens.is_empty() {
             return Err("Empty command");
         }
@@ -117,8 +121,8 @@ impl Crsh{
                 Stdio::inherit()
             };
             match command {
-                Node::Command(toks) => {
-                    match Self::execute_command(toks, stdin, stdout) {
+                Node::Command(toks, redirect) => {
+                    match Self::execute_command(toks, redirect, stdin, stdout) {
                         Ok(child_opt) => {
                             previous_command = child_opt
                         },

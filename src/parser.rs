@@ -43,7 +43,8 @@ impl Parser {
                 _ => eprintln!("Error parsing command")
             }
         }
-        Node::Command(command)
+        todo!("Add redirect");
+        //Node::Command(command, vec!())
     }
 
     fn check_tok(&self, token: &Token) -> bool {
