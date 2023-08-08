@@ -32,6 +32,17 @@ impl Scanner {
         self.tokens
     }
 
+    fn scan_token(&mut self) -> Option<Token>{
+        let chr = self.peek();
+        match chr {
+            '|' => self.pipe_token(),
+            ' '|'\t'|'\n'|'\r' => self.whitespace(),
+            _ => self.regular_token(),
+            '<' => self.lredirect(),
+            '>' => self.rredirect()
+        }
+    }
+
     fn regular_token(&mut self) -> Option<Token>{
         let mut token = String::new();
         while !(self.is_end() || SPECIAL_CHARACTERS.contains(self.peek()) || self.peek().is_whitespace()){
@@ -53,18 +64,18 @@ impl Scanner {
         self.advance();
         Some(Token::Pipe)
     }
-
-    fn scan_token(&mut self) -> Option<Token>{
-        let chr = self.peek();
-        match chr {
-            '|' => self.pipe_token(),
-            ' '|'\t'|'\n'|'\r' => self.whitespace(),
-            _ => self.regular_token()
-        }
+    
+    fn lredirect(&mut self) -> Option<Token>{
+        self.advance();
+        Some(Token::LRedirect)
+    }
+    
+    fn rredirect(&mut self) -> Option<Token>{
+        self.advance();
+        Some(Token::RRedirect)
     }
 
-    
-    fn peek(& self) -> &char {
+    fn peek(&self) -> &char {
         &self.chars[self.curr]
     }
     
