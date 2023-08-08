@@ -18,9 +18,15 @@ crsh: A crab shell in Rust
 ## Grammar
 ```
 pipeline ::= command ( "|" command )*
-command ::= regular_char+
+command ::= word+ redirect*
+word ::= regular_char+
+redirect ::= '>' word
+              | '<' word
+              | '>>' word
+
 ```
-A `regular_char` is a character that is not a Bash special character (`"$'\"\\#=[]!><|;{}()*?~&`). This isn't proper EBNF, but I chose to leave it like this for simplicity.
+- A `regular_char` is a character that is not a Bash special character (`"$'\"\\#=[]!><|;{}()*?~&`). This isn't proper EBNF, but I chose to leave it like this for simplicity.
+- For the subset I support, I make some assumptions about the grammar to make my life easier.
 ## References
 - [Build Your Own Shell using Rust](https://www.joshmcguigan.com/blog/build-your-own-shell-rust/)
 - [I/O Redirection in the Shell](https://thoughtbot.com/blog/input-output-redirection-in-the-shell)

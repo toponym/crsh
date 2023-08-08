@@ -26,4 +26,15 @@ mod test_scanner {
         let tokens = scanner.scan_tokens();
         assert_eq!(expected[..], tokens[..]);
     }
+
+    #[test]
+    fn scan_redirect() {
+        let command = "grep hi < input >output";
+        let expected = vec!(reg_token!("grep"), reg_token!("hi"), Token::LRedirect,
+        reg_token!("input"), Token::RRedirect, reg_token!("output"), Token::EOF);
+        let scanner = Scanner::new(command.into());
+        let tokens = scanner.scan_tokens();
+        assert_eq!(expected[..], tokens[..]);
+    }
+
 }
