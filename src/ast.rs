@@ -4,5 +4,5 @@ pub enum Node {
     Pipeline(Vec<Node>),
     RedirectAppend(String),
     RedirectWrite(String),
-    RedirectRead(String)
+    RedirectRead(String),
 }
