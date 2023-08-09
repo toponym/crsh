@@ -20,8 +20,8 @@ mod tests {
     fn parse_pipeline() {
         // "cat myfile | grep -r | wc"
         let tokens = vec!(reg_token!("cat"), reg_token!("myfile"), Token::Pipe, 
-        reg_token!("grep"), reg_token!("-r"), Token::Pipe, reg_token!("wc"),
-        Token::EOF
+            reg_token!("grep"), reg_token!("-r"), Token::Pipe, reg_token!("wc"),
+            Token::EOF
         );
         let cmd0 = Node::Command(string_vec!("cat", "myfile"), vec!());
         let cmd1 = Node::Command(string_vec!("grep", "-r"), vec!());
@@ -34,11 +34,22 @@ mod tests {
     #[test]
     fn parse_redirect() {
         let tokens = vec!(reg_token!("grep"), reg_token!("hi"), Token::LRedirect,
-        reg_token!("input"), Token::RRedirect, reg_token!("output"), Token::EOF);
+            reg_token!("input"), Token::RRedirect, reg_token!("output"), Token::EOF);
         let redirect_vec = vec!(Node::Redirect(RedirectType::Read, "input".into()),
-        Node::Redirect(RedirectType::Write, "output".into())
+            Node::Redirect(RedirectType::Write, "output".into())
         );
         let expected = Node::Pipeline(vec!(Node::Command(string_vec!("grep", "hi"), redirect_vec)));
+        let parser = Parser::new(tokens);
+        assert_eq!(expected, parser.parse());
+    }
+
+    #[test]
+    fn parse_redirect_append() {
+        let tokens = vec!(reg_token!("grep"), reg_token!("hi"), reg_token!("myfile"), Token::RRedirect, 
+            Token::RRedirect, reg_token!("output"), Token::EOF);
+        let redirect_vec = vec!(Node::Redirect(RedirectType::Append, "output".into())
+        );
+        let expected = Node::Pipeline(vec!(Node::Command(string_vec!("grep", "hi", "myfile"), redirect_vec)));
         let parser = Parser::new(tokens);
         assert_eq!(expected, parser.parse());
     }
