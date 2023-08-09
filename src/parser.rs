@@ -60,8 +60,16 @@ impl Parser {
                     redirect.push(Node::Redirect(RedirectType::Read, string.clone()))
                 },
                 Token::RRedirect => {
-                    let string = unwrap_regular!(self.advance());
-                    redirect.push(Node::Redirect(RedirectType::Write, string.clone()))
+                    match self.advance() {
+                        Token::RRedirect => {
+                            let string = unwrap_regular!(self.advance());
+                            redirect.push(Node::Redirect(RedirectType::Append, string.clone()));
+                        },
+                        Token::Regular(string) => {
+                            redirect.push(Node::Redirect(RedirectType::Write, string.clone()));
+                        },
+                        tok => panic!("Unexpected token after \">\": {:?}", tok)
+                    }
                 },
                 _ => panic!("Error parsing command")
             }
