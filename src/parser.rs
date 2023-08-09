@@ -1,7 +1,7 @@
 use std::mem::discriminant;
 use lazy_static::lazy_static;
 use crate::token::Token;
-use crate::ast::{Node, RedirectType};
+use crate::ast::Node;
 
 lazy_static!{
     static ref REGULAR_TOKEN: Token = Token::Regular("".to_string());
@@ -57,16 +57,16 @@ impl Parser {
             match tok {
                 Token::LRedirect => {
                     let string = unwrap_regular!(self.advance());
-                    redirect.push(Node::Redirect(RedirectType::Read, string.clone()))
+                    redirect.push(Node::RedirectRead(string.clone()))
                 },
                 Token::RRedirect => {
                     match self.advance() {
                         Token::RRedirect => {
                             let string = unwrap_regular!(self.advance());
-                            redirect.push(Node::Redirect(RedirectType::Append, string.clone()));
+                            redirect.push(Node::RedirectAppend(string.clone()));
                         },
                         Token::Regular(string) => {
-                            redirect.push(Node::Redirect(RedirectType::Write, string.clone()));
+                            redirect.push(Node::RedirectWrite(string.clone()));
                         },
                         tok => panic!("Unexpected token after \">\": {:?}", tok)
                     }
