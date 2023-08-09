@@ -22,3 +22,5 @@ jobs:
       run: cargo test --verbose
     - name: Lint with Clippy
       run: cargo clippy --all-features -- -D warnings
+    - name: Check code is formatted with rustfmt
+      run: cargo fmt -- --check
