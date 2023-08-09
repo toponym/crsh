@@ -1,8 +1,8 @@
-use std::io::{stdin, stdout, Write};
-use std::process::{exit};
-use crsh::Crsh;
-use crsh::scanner::Scanner;
 use crsh::parser::Parser;
+use crsh::scanner::Scanner;
+use crsh::Crsh;
+use std::io::{stdin, stdout, Write};
+use std::process::exit;
 
 fn main() {
     loop {
@@ -25,7 +25,7 @@ fn main() {
         let tokens = scanner.scan_tokens();
         let parser = Parser::new(tokens);
         let ast = parser.parse();
-        match Crsh::execute(ast){
+        match Crsh::execute(ast) {
             Ok(_) => (),
             Err(err) => {
                 eprintln!("Error: {}", err)

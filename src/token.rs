@@ -15,5 +15,5 @@ pub enum Token {
     SubshellEnd,
     Home,
     Background,
-    EOF
+    EOF,
 }
