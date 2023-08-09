@@ -3,7 +3,7 @@ mod utils;
 #[cfg(test)]
 mod tests {
     use crsh::parser::Parser;
-    use crsh::ast::{Node, RedirectType};
+    use crsh::ast::Node;
     use crsh::token::Token;
     use crate::{reg_token, string_vec};
     
@@ -35,8 +35,8 @@ mod tests {
     fn parse_redirect() {
         let tokens = vec!(reg_token!("grep"), reg_token!("hi"), Token::LRedirect,
             reg_token!("input"), Token::RRedirect, reg_token!("output"), Token::EOF);
-        let redirect_vec = vec!(Node::Redirect(RedirectType::Read, "input".into()),
-            Node::Redirect(RedirectType::Write, "output".into())
+        let redirect_vec = vec!(Node::RedirectRead("input".into()),
+            Node::RedirectWrite("output".into())
         );
         let expected = Node::Pipeline(vec!(Node::Command(string_vec!("grep", "hi"), redirect_vec)));
         let parser = Parser::new(tokens);
@@ -47,7 +47,7 @@ mod tests {
     fn parse_redirect_append() {
         let tokens = vec!(reg_token!("grep"), reg_token!("hi"), reg_token!("myfile"), Token::RRedirect, 
             Token::RRedirect, reg_token!("output"), Token::EOF);
-        let redirect_vec = vec!(Node::Redirect(RedirectType::Append, "output".into())
+        let redirect_vec = vec!(Node::RedirectAppend("output".into())
         );
         let expected = Node::Pipeline(vec!(Node::Command(string_vec!("grep", "hi", "myfile"), redirect_vec)));
         let parser = Parser::new(tokens);

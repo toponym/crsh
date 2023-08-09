@@ -27,7 +27,7 @@ impl Crsh{
                 }
                 */
             },
-            Node::Redirect(_,_) => {todo!("Add redirect");}  
+            _ => Err("Unexpected starting node")
         }
     }
 
