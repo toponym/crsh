@@ -3,6 +3,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::env::set_current_dir;
 use std::str::FromStr;
+use std::fs::{OpenOptions};
 // TODO best way to handle namespaces?
 pub mod scanner;
 pub mod parser;
@@ -18,46 +19,54 @@ impl Crsh{
         // TODO add better error handling + recovery
         match node {
             Node::Pipeline(commands) => Self::pipeline_command(commands),
-            Node::Command(_toks, _) => {
-                todo!("Add redirect");/*
-                let child_res = Self::execute_command(&toks, Stdio::inherit(), Stdio::inherit());
-                match child_res {
-                    Ok(child_opt) => Self::collect_command_output(child_opt),
-                    Err(_) => Err("Failed running command")
-                }
-                */
-            },
             _ => Err("Unexpected starting node")
         }
     }
 
-    fn execute_command(tokens: &Vec<String>, redirect: &[Node], stdin: Stdio, stdout: Stdio) -> Result<Option<Child>, &'static str>{
+    fn execute_command(tokens: &Vec<String>, redirects: &[Node], stdin: Stdio, stdout: Stdio) -> Result<Option<Child>, &'static str>{
         if tokens.is_empty() {
             return Err("Empty command");
         }
         let command = tokens[0].as_str();
         let args = &tokens[1..];
+        let mut cmd_stdin = stdin;
+        let mut cmd_stdout = stdout;
         // TODO add piping for builtins
+        for redirect in redirects {
+            match redirect {
+                Node::RedirectRead(filename) => {
+                    let file = OpenOptions::new()
+                        .read(true)
+                        .open(filename)
+                        .map_err(|_| "Failed opening file")?;
+                    cmd_stdin = Stdio::from(file);
+                },
+                Node::RedirectWrite(filename) => {
+                    let file = OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open(filename)
+                        .map_err(|_| "Failed opening file")?;
+                    cmd_stdout = Stdio::from(file);
+                },
+                Node::RedirectAppend(filename) => {
+                    let file = OpenOptions::new()
+                        .append(true)
+                        .open(filename)
+                        .map_err(|_| "Failed opening file")?;
+                    cmd_stdout = Stdio::from(file);
+                },
+                _ => panic!("Unexpected node for redirect: {:?}", redirect)
+            }
+        }
         match command {
             "cd" => Self::cd_command(args),
             "exit" => Self::exit_command(args),
-            _ => Self::general_command(command, args, stdin, stdout)
+            _ => Self::general_command(command, args, cmd_stdin, cmd_stdout)
         }
     }
-
-    fn collect_command_output(command_child: Option<Child>) -> Result<Output, &'static str>{
-        match command_child {
-            Some(child) => {
-                let output_result = child.wait_with_output();
-                match output_result {
-                    Ok(output) => Ok(output),
-                    Err(_) => Err("Failed running command")
-                }
-            },
-            None => Ok(Self::new_empty_output(0))
-        }
-    }
-
+    
     fn new_empty_output(exit_code: i32) -> Output{
         Output {
             status: ExitStatusExt::from_raw(exit_code),
@@ -126,7 +135,7 @@ impl Crsh{
                         Ok(child_opt) => {
                             previous_command = child_opt
                         },
-                        Err(_) => {return Err("Pipeline command failed")}
+                        Err(err) => {return Err(err)}
                     }
                 },
                 _ => unimplemented!("Command {:?} not implemented for pipeline", command)
