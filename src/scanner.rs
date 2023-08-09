@@ -33,13 +33,17 @@ impl Scanner {
     }
 
     fn scan_token(&mut self) -> Option<Token>{
+        macro_rules! advance_return {
+            ($x:expr) => ({self.advance(); return Some($x)})
+        }
+        
         let chr = self.peek();
         match chr {
-            '|' => self.pipe_token(),
+            '|' => advance_return!(Token::Pipe),
             ' '|'\t'|'\n'|'\r' => self.whitespace(),
-            _ => self.regular_token(),
-            '<' => self.lredirect(),
-            '>' => self.rredirect()
+            '<' => advance_return!(Token::LRedirect),
+            '>' => advance_return!(Token::RRedirect),
+            _ => self.regular_token()
         }
     }
 
@@ -58,21 +62,6 @@ impl Scanner {
     fn whitespace(&mut self) -> Option<Token>{
         self.advance();
         None
-    }
-
-    fn pipe_token(&mut self) -> Option<Token>{
-        self.advance();
-        Some(Token::Pipe)
-    }
-    
-    fn lredirect(&mut self) -> Option<Token>{
-        self.advance();
-        Some(Token::LRedirect)
-    }
-    
-    fn rredirect(&mut self) -> Option<Token>{
-        self.advance();
-        Some(Token::RRedirect)
     }
 
     fn peek(&self) -> &char {
