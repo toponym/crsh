@@ -1,10 +1,20 @@
 use std::mem::discriminant;
 use lazy_static::lazy_static;
 use crate::token::Token;
-use crate::ast::Node;
+use crate::ast::{Node, RedirectType};
 
 lazy_static!{
     static ref REGULAR_TOKEN: Token = Token::Regular("".to_string());
+}
+
+macro_rules! unwrap_regular {
+    ($x:expr) => ({
+        if let Token::Regular(string) = $x {
+            string
+        } else {
+            panic!("Expected Regular Token")
+        }
+    })
 }
 
 pub struct Parser{
@@ -33,18 +43,30 @@ impl Parser {
     }
 
     fn command(&mut self) -> Node {
+        // TODO improve error handling/propagation
+        // should gracefully handle parsing errors, not panic
         let mut command = vec!();
         while self.check_tok(&REGULAR_TOKEN){
+            let string = unwrap_regular!(self.advance());
             // TODO no-copy approach instead?
+            command.push(string.clone());
+        }
+        let mut redirect = vec!();
+        while self.check_tok(&Token::RRedirect) || self.check_tok(&Token::LRedirect){
             let tok = self.advance();
             match tok {
-                Token::Regular(string) => command.push(string.clone()),
-                // TODO improve error handling/propagation
-                _ => eprintln!("Error parsing command")
+                Token::LRedirect => {
+                    let string = unwrap_regular!(self.advance());
+                    redirect.push(Node::Redirect(RedirectType::Read, string.clone()))
+                },
+                Token::RRedirect => {
+                    let string = unwrap_regular!(self.advance());
+                    redirect.push(Node::Redirect(RedirectType::Write, string.clone()))
+                },
+                _ => panic!("Error parsing command")
             }
         }
-        todo!("Add redirect");
-        //Node::Command(command, vec!())
+        Node::Command(command, redirect)
     }
 
     fn check_tok(&self, token: &Token) -> bool {

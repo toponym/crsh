@@ -18,7 +18,7 @@ impl Crsh{
         // TODO add better error handling + recovery
         match node {
             Node::Pipeline(commands) => Self::pipeline_command(commands),
-            Node::Command(toks, _) => {
+            Node::Command(_toks, _) => {
                 todo!("Add redirect");/*
                 let child_res = Self::execute_command(&toks, Stdio::inherit(), Stdio::inherit());
                 match child_res {
