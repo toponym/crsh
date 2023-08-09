@@ -3,7 +3,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::env::set_current_dir;
 use std::str::FromStr;
-use std::fs::{OpenOptions};
+use std::fs::OpenOptions;
 // TODO best way to handle namespaces?
 pub mod scanner;
 pub mod parser;
