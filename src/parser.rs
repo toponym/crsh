@@ -28,7 +28,17 @@ impl Parser {
     }
 
     pub fn parse(mut self) -> Node {
-        self.pipeline()
+        let mut pipelines = vec![self.pipeline()];
+        while self.match_tok(&Token::CommandSeparator) {
+            pipelines.push(self.pipeline());
+        }
+        // TODO gracefully handle parsing errors
+        assert!(self.peek() == &Token::EOF, "Not all tokens are parsed");
+        if pipelines.len() == 1 {
+            pipelines.pop().unwrap()
+        } else {
+            Node::CommandSequence(pipelines)
+        }
     }
 
     fn pipeline(&mut self) -> Node {

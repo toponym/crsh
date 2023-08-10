@@ -5,4 +5,5 @@ pub enum Node {
     RedirectAppend(String),
     RedirectWrite(String),
     RedirectRead(String),
+    CommandSequence(Vec<Node>),
 }
