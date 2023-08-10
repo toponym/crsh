@@ -16,11 +16,12 @@ crsh: A crab shell in Rust
 - quoting
 - `&&`, `||`, `;`
 
-## Grammar
+## EBNF Grammar
 ```
-pipeline ::= command ( "|" command )*
-command ::= word+ redirect*
-word ::= regular_char+
+command_sequence ::= pipeline {";" pipeline} [";"];
+pipeline ::= command {"|" command }
+command ::= word {word} {redirect}
+word ::= regular_char {regular_char}
 redirect ::= '>' word
               | '<' word
               | '>>' word
