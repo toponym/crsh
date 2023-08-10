@@ -46,6 +46,7 @@ impl Scanner {
             ' ' | '\t' | '\n' | '\r' => self.whitespace(),
             '<' => advance_return!(Token::LRedirect),
             '>' => advance_return!(Token::RRedirect),
+            ';' => advance_return!(Token::CommandSeparator),
             _ => self.regular_token(),
         }
     }

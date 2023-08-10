@@ -18,8 +18,21 @@ impl Crsh {
         // TODO add better error handling + recovery
         match node {
             Node::Pipeline(commands) => Self::pipeline_command(commands),
+            Node::CommandSequence(command_seq) => Self::command_sequence(command_seq),
             _ => Err("Unexpected starting node"),
         }
+    }
+
+    fn command_sequence(command_seq: Vec<Node>) -> Result<Output, &'static str> {
+        let mut res = Ok(Self::new_empty_output(0));
+        // TODO support command in command sequence
+        for command in command_seq {
+            res = match command {
+                Node::Pipeline(commands) => Self::pipeline_command(commands),
+                _ => Err("Unexpected node in command sequence"),
+            };
+        }
+        res
     }
 
     fn execute_command(
