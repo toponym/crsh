@@ -4,10 +4,11 @@ crsh: A crab shell in Rust
 
 ## Features
 - Pipes
-- Shell builtins: `cd`, `exit` 
+- Shell builtins: `cd`, `exit`
+- Redirect stdin/stdout
 
 ## TODO
-- redirect stdin/stdout/stderr to/from files
+- redirect stderr to/from files
 - signal management (e.g. SIGINT w ctrl+c)
 - environment variables (`export`, `unset`)
 - shell builtins: `history`
