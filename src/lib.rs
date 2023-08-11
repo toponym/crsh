@@ -4,6 +4,10 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{exit, Child, Command, Output, Stdio};
 use std::str::FromStr;
+use std::io::Read;
+use std::sync::{Arc, Mutex};
+use ctrlc;
+
 // TODO best way to handle namespaces?
 pub mod ast;
 pub mod parser;
@@ -135,12 +139,38 @@ impl Crsh {
         }
     }
 
+    fn ref_wait_with_output(child: &mut Child) -> Result<Output, &'static str> {
+        let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
+        if let Some(mut out) = child.stdout.take() {
+            let x = out.read_to_end(&mut stdout).map_err(|_|"Failed reading final command stdout");
+        }
+        if let Some(mut err) = child.stderr.take() {
+            err.read_to_end(&mut stderr).map_err(|_|"Failed reading final command stderr");
+        }
+    
+        let status = match child.wait() {
+            Ok(status) => status,
+            Err(_) => {return Err("Failed running final command")}
+        };
+        
+        Ok(Output{status, stdout, stderr})
+    
+    }
+
     fn pipeline_command(commands: Vec<Node>) -> Result<Output, &'static str> {
-        let mut previous_command = None;
+        let previous_command: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
+        let previous_command_clone = previous_command.clone();
         let command_count = commands.len();
+        ctrlc::set_handler( move|| {
+            // TODO don't use unwrap here?
+            if let Some(child) = previous_command_clone.lock().unwrap().as_mut() {
+                child.kill();
+            }
+        }).expect("Error setting ctrl-c handler");
         for (idx, command) in commands.iter().enumerate() {
-            let stdin = previous_command.map_or(Stdio::inherit(), |child: Child| {
-                Stdio::from(child.stdout.unwrap())
+            let stdin = previous_command.lock().unwrap().as_mut().map_or(Stdio::inherit(), |child: &mut Child| {
+                Stdio::from(child.stdout.take().unwrap())
             });
             let stdout = if idx < command_count - 1 {
                 Stdio::piped()
@@ -150,20 +180,17 @@ impl Crsh {
             match command {
                 Node::Command(toks, redirect) => {
                     match Self::execute_command(toks, redirect, stdin, stdout) {
-                        Ok(child_opt) => previous_command = child_opt,
+                        Ok(child_opt) => *previous_command.lock().unwrap() = child_opt,
                         Err(err) => return Err(err),
                     }
                 }
                 _ => unimplemented!("Command {:?} not implemented for pipeline", command),
             }
         }
-        if let Some(final_command) = previous_command {
-            match final_command.wait_with_output() {
-                Err(_) => Err("Pipeline command failed"),
-                Ok(output) => Ok(output),
-            }
+        let tmp_solution = if let Some(final_command) = previous_command.lock().unwrap().as_mut() {
+            Self::ref_wait_with_output(final_command)
         } else {
             Ok(Self::new_empty_output(0))
-        }
+        };tmp_solution
     }
 }
