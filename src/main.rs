@@ -29,6 +29,9 @@ fn main() {
         let scanner = Scanner::new(input);
         let tokens = scanner.scan_tokens();
         let parser = Parser::new(tokens);
+        if parser.is_empty() {
+            continue;
+        }
         let ast = parser.parse();
         match interpreter.execute(ast) {
             Ok(_) => (),

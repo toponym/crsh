@@ -41,6 +41,10 @@ impl Parser {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.tokens == vec!(Token::EOF)
+    }
+
     fn pipeline(&mut self) -> Node {
         let mut commands = vec![self.command()];
         while self.match_tok(&Token::Pipe) {
