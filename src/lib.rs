@@ -1,12 +1,11 @@
 use std::env::set_current_dir;
 use std::fs::OpenOptions;
+use std::io::Read;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{exit, Child, Command, Output, Stdio};
 use std::str::FromStr;
-use std::io::Read;
 use std::sync::{Arc, Mutex};
-use ctrlc;
 
 // TODO best way to handle namespaces?
 pub mod ast;
@@ -19,23 +18,29 @@ pub struct Crsh {
     previous_cmd: Arc<Mutex<Option<Child>>>,
 }
 
+impl Default for Crsh {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Crsh {
     pub fn new() -> Self {
         let previous_cmd: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
+        Self { previous_cmd }
+    }
+
+    pub fn set_ctrl_handler(&mut self) {
         // set SIGINT handler
-        let previous_command_clone = previous_cmd.clone();
-        ctrlc::set_handler( move|| {
+        let previous_command_clone = self.previous_cmd.clone();
+        ctrlc::set_handler(move || {
             // TODO don't use unwrap here?
             if let Some(child) = previous_command_clone.lock().unwrap().as_mut() {
                 child.kill().expect("Error killing child process");
             }
-        }).expect("Error setting ctrl-c handler");
-
-        Self {
-            previous_cmd 
-        }
+        })
+        .expect("Error setting ctrl-c handler");
     }
-
 
     pub fn execute(&mut self, node: Node) -> Result<Output, &'static str> {
         // TODO add better error handling + recovery
@@ -161,43 +166,50 @@ impl Crsh {
 
     fn ref_wait_with_output(child: &mut Child) -> Result<Output, &'static str> {
         /*
-         Similar to std::process::Child::wait_with_output
-         Differences are this function does not take stdin (which supposedly prevents deadlock)
-         and this function does not take ownership of child
-         */
+        Similar to std::process::Child::wait_with_output
+        Differences are this function does not take stdin (which supposedly prevents deadlock)
+        and this function does not take ownership of child
+        */
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
-        
+
         macro_rules! output_to_vec {
             ($vec:expr, $child_output: expr, $err_msg:expr) => {
                 match $child_output.take() {
-                    Some(mut child_out) => {
-                        match child_out.read_to_end(&mut $vec) {
-                            Ok(_) => (),
-                            Err(_) => {
-                                return Err($err_msg);}
+                    Some(mut child_out) => match child_out.read_to_end(&mut $vec) {
+                        Ok(_) => (),
+                        Err(_) => {
+                            return Err($err_msg);
                         }
                     },
-                    None => ()
+                    None => (),
                 }
-            }
+            };
         }
         output_to_vec!(stdout, child.stdout, "Error reading command stdout");
         output_to_vec!(stderr, child.stderr, "Error reading command stderr");
-    
+
         let status = child.wait().map_err(|_| "Failed running final command")?;
-        
-        Ok(Output{status, stdout, stderr})
-    
+
+        Ok(Output {
+            status,
+            stdout,
+            stderr,
+        })
     }
 
     fn pipeline_command(&mut self, commands: Vec<Node>) -> Result<Output, &'static str> {
         self.previous_cmd = Arc::new(Mutex::new(None));
         let command_count = commands.len();
         for (idx, command) in commands.iter().enumerate() {
-            let stdin = self.previous_cmd.lock().unwrap().as_mut().map_or(Stdio::inherit(), |child: &mut Child| {
-                Stdio::from(child.stdout.take().unwrap())
-            });
+            let stdin = self
+                .previous_cmd
+                .lock()
+                .unwrap()
+                .as_mut()
+                .map_or(Stdio::inherit(), |child: &mut Child| {
+                    Stdio::from(child.stdout.take().unwrap())
+                });
             let stdout = if idx < command_count - 1 {
                 Stdio::piped()
             } else {
@@ -215,7 +227,7 @@ impl Crsh {
         }
         match self.previous_cmd.lock().unwrap().as_mut() {
             Some(final_command) => Self::ref_wait_with_output(final_command),
-            None => Ok(Self::new_empty_output(0))
+            None => Ok(Self::new_empty_output(0)),
         }
     }
 }

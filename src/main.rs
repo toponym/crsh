@@ -6,6 +6,7 @@ use std::process::exit;
 
 fn main() {
     let mut interpreter = Crsh::new();
+    interpreter.set_ctrl_handler();
     loop {
         print!("> ");
         stdout().flush().unwrap_or_else(|_| {
@@ -22,7 +23,7 @@ fn main() {
             }
         }
         // handle CTRL-D
-        if input.len() == 0 {
+        if input.is_empty() {
             input = "exit".to_string();
         }
         // Eval

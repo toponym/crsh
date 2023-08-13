@@ -42,7 +42,7 @@ impl Parser {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.tokens == vec!(Token::EOF)
+        self.tokens == vec![Token::EOF]
     }
 
     fn pipeline(&mut self) -> Node {
