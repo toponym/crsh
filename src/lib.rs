@@ -15,24 +15,43 @@ pub mod scanner;
 pub mod token;
 use crate::ast::Node;
 
-pub struct Crsh {}
+pub struct Crsh {
+    previous_cmd: Arc<Mutex<Option<Child>>>,
+}
 
 impl Crsh {
-    pub fn execute(node: Node) -> Result<Output, &'static str> {
+    pub fn new() -> Self {
+        let previous_cmd: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
+        // set SIGINT handler
+        let previous_command_clone = previous_cmd.clone();
+        ctrlc::set_handler( move|| {
+            // TODO don't use unwrap here?
+            if let Some(child) = previous_command_clone.lock().unwrap().as_mut() {
+                child.kill();
+            }
+        }).expect("Error setting ctrl-c handler");
+
+        Self {
+            previous_cmd 
+        }
+    }
+
+
+    pub fn execute(&mut self, node: Node) -> Result<Output, &'static str> {
         // TODO add better error handling + recovery
         match node {
-            Node::Pipeline(commands) => Self::pipeline_command(commands),
-            Node::CommandSequence(command_seq) => Self::command_sequence(command_seq),
+            Node::Pipeline(commands) => self.pipeline_command(commands),
+            Node::CommandSequence(command_seq) => self.command_sequence(command_seq),
             _ => Err("Unexpected starting node"),
         }
     }
 
-    fn command_sequence(command_seq: Vec<Node>) -> Result<Output, &'static str> {
+    fn command_sequence(&mut self, command_seq: Vec<Node>) -> Result<Output, &'static str> {
         let mut res = Ok(Self::new_empty_output(0));
         // TODO support command in command sequence
         for command in command_seq {
             res = match command {
-                Node::Pipeline(commands) => Self::pipeline_command(commands),
+                Node::Pipeline(commands) => self.pipeline_command(commands),
                 _ => Err("Unexpected node in command sequence"),
             };
         }
@@ -119,6 +138,7 @@ impl Crsh {
                 Err(_) => return Err("Didn't pass numeric argument"),
             }
         }
+        println!("exit");
         exit(exit_code);
     }
 
@@ -158,18 +178,11 @@ impl Crsh {
     
     }
 
-    fn pipeline_command(commands: Vec<Node>) -> Result<Output, &'static str> {
-        let previous_command: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
-        let previous_command_clone = previous_command.clone();
+    fn pipeline_command(&mut self, commands: Vec<Node>) -> Result<Output, &'static str> {
+        self.previous_cmd = Arc::new(Mutex::new(None));
         let command_count = commands.len();
-        ctrlc::set_handler( move|| {
-            // TODO don't use unwrap here?
-            if let Some(child) = previous_command_clone.lock().unwrap().as_mut() {
-                child.kill();
-            }
-        }).expect("Error setting ctrl-c handler");
         for (idx, command) in commands.iter().enumerate() {
-            let stdin = previous_command.lock().unwrap().as_mut().map_or(Stdio::inherit(), |child: &mut Child| {
+            let stdin = self.previous_cmd.lock().unwrap().as_mut().map_or(Stdio::inherit(), |child: &mut Child| {
                 Stdio::from(child.stdout.take().unwrap())
             });
             let stdout = if idx < command_count - 1 {
@@ -180,14 +193,14 @@ impl Crsh {
             match command {
                 Node::Command(toks, redirect) => {
                     match Self::execute_command(toks, redirect, stdin, stdout) {
-                        Ok(child_opt) => *previous_command.lock().unwrap() = child_opt,
+                        Ok(child_opt) => *self.previous_cmd.lock().unwrap() = child_opt,
                         Err(err) => return Err(err),
                     }
                 }
                 _ => unimplemented!("Command {:?} not implemented for pipeline", command),
             }
         }
-        let tmp_solution = if let Some(final_command) = previous_command.lock().unwrap().as_mut() {
+        let tmp_solution = if let Some(final_command) = self.previous_cmd.lock().unwrap().as_mut() {
             Self::ref_wait_with_output(final_command)
         } else {
             Ok(Self::new_empty_output(0))
