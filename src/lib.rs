@@ -27,7 +27,7 @@ impl Crsh {
         ctrlc::set_handler( move|| {
             // TODO don't use unwrap here?
             if let Some(child) = previous_command_clone.lock().unwrap().as_mut() {
-                child.kill();
+                child.kill().expect("Error killing child process");
             }
         }).expect("Error setting ctrl-c handler");
 
@@ -160,19 +160,32 @@ impl Crsh {
     }
 
     fn ref_wait_with_output(child: &mut Child) -> Result<Output, &'static str> {
+        /*
+         Similar to std::process::Child::wait_with_output
+         Differences are this function does not take stdin (which supposedly prevents deadlock)
+         and this function does not take ownership of child
+         */
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
-        if let Some(mut out) = child.stdout.take() {
-            let x = out.read_to_end(&mut stdout).map_err(|_|"Failed reading final command stdout");
+        
+        macro_rules! output_to_vec {
+            ($vec:expr, $child_output: expr, $err_msg:expr) => {
+                match $child_output.take() {
+                    Some(mut child_out) => {
+                        match child_out.read_to_end(&mut $vec) {
+                            Ok(_) => (),
+                            Err(_) => {
+                                return Err($err_msg);}
+                        }
+                    },
+                    None => ()
+                }
+            }
         }
-        if let Some(mut err) = child.stderr.take() {
-            err.read_to_end(&mut stderr).map_err(|_|"Failed reading final command stderr");
-        }
+        output_to_vec!(stdout, child.stdout, "Error reading command stdout");
+        output_to_vec!(stderr, child.stderr, "Error reading command stderr");
     
-        let status = match child.wait() {
-            Ok(status) => status,
-            Err(_) => {return Err("Failed running final command")}
-        };
+        let status = child.wait().map_err(|_| "Failed running final command")?;
         
         Ok(Output{status, stdout, stderr})
     
@@ -200,10 +213,9 @@ impl Crsh {
                 _ => unimplemented!("Command {:?} not implemented for pipeline", command),
             }
         }
-        let tmp_solution = if let Some(final_command) = self.previous_cmd.lock().unwrap().as_mut() {
-            Self::ref_wait_with_output(final_command)
-        } else {
-            Ok(Self::new_empty_output(0))
-        };tmp_solution
+        match self.previous_cmd.lock().unwrap().as_mut() {
+            Some(final_command) => Self::ref_wait_with_output(final_command),
+            None => Ok(Self::new_empty_output(0))
+        }
     }
 }
