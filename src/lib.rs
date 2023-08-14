@@ -1,11 +1,13 @@
 use std::env::set_current_dir;
 use std::fs::OpenOptions;
-use std::io::Read;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
+use std::process::ExitStatus;
 use std::process::{exit, Child, Command, Output, Stdio};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
+use std::thread::sleep;
+use std::time::Duration;
 
 // TODO best way to handle namespaces?
 pub mod ast;
@@ -15,7 +17,7 @@ pub mod token;
 use crate::ast::Node;
 
 pub struct Crsh {
-    previous_cmd: Arc<Mutex<Option<Child>>>,
+    sigint_receiver: mpsc::Receiver<bool>,
 }
 
 impl Default for Crsh {
@@ -26,20 +28,14 @@ impl Default for Crsh {
 
 impl Crsh {
     pub fn new() -> Self {
-        let previous_cmd: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
-        Self { previous_cmd }
-    }
-
-    pub fn set_ctrl_handler(&mut self) {
-        // set SIGINT handler
-        let previous_command_clone = self.previous_cmd.clone();
+        let (sender, receiver): (mpsc::Sender<bool>, mpsc::Receiver<bool>) = mpsc::channel();
         ctrlc::set_handler(move || {
-            // TODO don't use unwrap here?
-            if let Some(child) = previous_command_clone.lock().unwrap().as_mut() {
-                child.kill().expect("Error killing child process");
-            }
+            sender.send(true).unwrap();
         })
         .expect("Error setting ctrl-c handler");
+        Self {
+            sigint_receiver: receiver,
+        }
     }
 
     pub fn execute(&mut self, node: Node) -> Result<Output, &'static str> {
@@ -164,69 +160,52 @@ impl Crsh {
         }
     }
 
-    fn ref_wait_with_output(child: &mut Child) -> Result<Output, &'static str> {
-        /*
-        Similar to std::process::Child::wait_with_output
-        Differences are this function does not take stdin (which supposedly prevents deadlock)
-        and this function does not take ownership of child
-        */
-        let mut stdout: Vec<u8> = Vec::new();
-        let mut stderr: Vec<u8> = Vec::new();
-
-        macro_rules! output_to_vec {
-            ($vec:expr, $child_output: expr, $err_msg:expr) => {
-                match $child_output.take() {
-                    Some(mut child_out) => match child_out.read_to_end(&mut $vec) {
-                        Ok(_) => (),
-                        Err(_) => {
-                            return Err($err_msg);
-                        }
-                    },
-                    None => (),
-                }
-            };
+    fn wait_handle_interrupts(&mut self, child: &mut Child) -> Result<ExitStatus, &'static str> {
+        loop {
+            match child.try_wait() {
+                Ok(None) => (),                        // Child still running
+                Ok(Some(status)) => return Ok(status), // Child finished
+                Err(_) => return Err("Error waiting on process"),
+            }
+            if let Ok(true) = self.sigint_receiver.try_recv() {
+                child.kill().expect("Error killing child process"); // sigint received, kill child
+                println!("SIGINT RECEIVED");
+                return Err("Error SIGINT received, child killed");
+            }
+            sleep(Duration::from_millis(100));
         }
-        output_to_vec!(stdout, child.stdout, "Error reading command stdout");
-        output_to_vec!(stderr, child.stderr, "Error reading command stderr");
-
-        let status = child.wait().map_err(|_| "Failed running final command")?;
-
-        Ok(Output {
-            status,
-            stdout,
-            stderr,
-        })
     }
 
     fn pipeline_command(&mut self, commands: Vec<Node>) -> Result<Output, &'static str> {
-        self.previous_cmd = Arc::new(Mutex::new(None));
+        let mut previous_cmd: Option<Child> = None;
         let command_count = commands.len();
         for (idx, command) in commands.iter().enumerate() {
-            let stdin = self
-                .previous_cmd
-                .lock()
-                .unwrap()
-                .as_mut()
-                .map_or(Stdio::inherit(), |child: &mut Child| {
-                    Stdio::from(child.stdout.take().unwrap())
-                });
+            let stdin = previous_cmd.map_or(Stdio::inherit(), |mut child: Child| {
+                Stdio::from(child.stdout.take().unwrap())
+            });
             let stdout = if idx < command_count - 1 {
                 Stdio::piped()
             } else {
                 Stdio::inherit()
             };
-            match command {
+            let mut current_cmd = match command {
                 Node::Command(toks, redirect) => {
                     match Self::execute_command(toks, redirect, stdin, stdout) {
-                        Ok(child_opt) => *self.previous_cmd.lock().unwrap() = child_opt,
+                        Ok(child_opt) => child_opt,
                         Err(err) => return Err(err),
                     }
                 }
                 _ => unimplemented!("Command {:?} not implemented for pipeline", command),
+            };
+            if let Some(child) = current_cmd.as_mut() {
+                self.wait_handle_interrupts(child)?;
             }
+            previous_cmd = current_cmd;
         }
-        match self.previous_cmd.lock().unwrap().as_mut() {
-            Some(final_command) => Self::ref_wait_with_output(final_command),
+        match previous_cmd {
+            Some(final_command) => final_command
+                .wait_with_output()
+                .map_err(|_| "Error waiting for output"),
             None => Ok(Self::new_empty_output(0)),
         }
     }
