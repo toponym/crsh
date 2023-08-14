@@ -5,6 +5,7 @@ use std::io::{stdin, stdout, Write};
 use std::process::exit;
 
 fn main() {
+    let mut interpreter = Crsh::new();
     loop {
         print!("> ");
         stdout().flush().unwrap_or_else(|_| {
@@ -20,12 +21,19 @@ fn main() {
                 exit(1);
             }
         }
+        // handle CTRL-D
+        if input.is_empty() {
+            input = "exit".to_string();
+        }
         // Eval
         let scanner = Scanner::new(input);
         let tokens = scanner.scan_tokens();
         let parser = Parser::new(tokens);
+        if parser.is_empty() {
+            continue;
+        }
         let ast = parser.parse();
-        match Crsh::execute(ast) {
+        match interpreter.execute(ast) {
             Ok(_) => (),
             Err(err) => {
                 eprintln!("Error: {}", err)

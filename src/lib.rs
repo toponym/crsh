@@ -2,8 +2,13 @@ use std::env::set_current_dir;
 use std::fs::OpenOptions;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
+use std::process::ExitStatus;
 use std::process::{exit, Child, Command, Output, Stdio};
 use std::str::FromStr;
+use std::sync::mpsc;
+use std::thread::sleep;
+use std::time::Duration;
+
 // TODO best way to handle namespaces?
 pub mod ast;
 pub mod parser;
@@ -11,24 +16,43 @@ pub mod scanner;
 pub mod token;
 use crate::ast::Node;
 
-pub struct Crsh {}
+pub struct Crsh {
+    sigint_receiver: mpsc::Receiver<bool>,
+}
+
+impl Default for Crsh {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Crsh {
-    pub fn execute(node: Node) -> Result<Output, &'static str> {
+    pub fn new() -> Self {
+        let (sender, receiver): (mpsc::Sender<bool>, mpsc::Receiver<bool>) = mpsc::channel();
+        ctrlc::set_handler(move || {
+            sender.send(true).unwrap();
+        })
+        .expect("Error setting ctrl-c handler");
+        Self {
+            sigint_receiver: receiver,
+        }
+    }
+
+    pub fn execute(&mut self, node: Node) -> Result<Output, &'static str> {
         // TODO add better error handling + recovery
         match node {
-            Node::Pipeline(commands) => Self::pipeline_command(commands),
-            Node::CommandSequence(command_seq) => Self::command_sequence(command_seq),
+            Node::Pipeline(commands) => self.pipeline_command(commands),
+            Node::CommandSequence(command_seq) => self.command_sequence(command_seq),
             _ => Err("Unexpected starting node"),
         }
     }
 
-    fn command_sequence(command_seq: Vec<Node>) -> Result<Output, &'static str> {
+    fn command_sequence(&mut self, command_seq: Vec<Node>) -> Result<Output, &'static str> {
         let mut res = Ok(Self::new_empty_output(0));
         // TODO support command in command sequence
         for command in command_seq {
             res = match command {
-                Node::Pipeline(commands) => Self::pipeline_command(commands),
+                Node::Pipeline(commands) => self.pipeline_command(commands),
                 _ => Err("Unexpected node in command sequence"),
             };
         }
@@ -115,6 +139,7 @@ impl Crsh {
                 Err(_) => return Err("Didn't pass numeric argument"),
             }
         }
+        println!("exit");
         exit(exit_code);
     }
 
@@ -135,35 +160,53 @@ impl Crsh {
         }
     }
 
-    fn pipeline_command(commands: Vec<Node>) -> Result<Output, &'static str> {
-        let mut previous_command = None;
+    fn wait_handle_interrupts(&mut self, child: &mut Child) -> Result<ExitStatus, &'static str> {
+        loop {
+            match child.try_wait() {
+                Ok(None) => (),                        // Child still running
+                Ok(Some(status)) => return Ok(status), // Child finished
+                Err(_) => return Err("Error waiting on process"),
+            }
+            if let Ok(true) = self.sigint_receiver.try_recv() {
+                child.kill().expect("Error killing child process"); // sigint received, kill child
+                println!("SIGINT RECEIVED");
+                return Err("Error SIGINT received, child killed");
+            }
+            sleep(Duration::from_millis(100));
+        }
+    }
+
+    fn pipeline_command(&mut self, commands: Vec<Node>) -> Result<Output, &'static str> {
+        let mut previous_cmd: Option<Child> = None;
         let command_count = commands.len();
         for (idx, command) in commands.iter().enumerate() {
-            let stdin = previous_command.map_or(Stdio::inherit(), |child: Child| {
-                Stdio::from(child.stdout.unwrap())
+            let stdin = previous_cmd.map_or(Stdio::inherit(), |mut child: Child| {
+                Stdio::from(child.stdout.take().unwrap())
             });
             let stdout = if idx < command_count - 1 {
                 Stdio::piped()
             } else {
                 Stdio::inherit()
             };
-            match command {
+            let mut current_cmd = match command {
                 Node::Command(toks, redirect) => {
                     match Self::execute_command(toks, redirect, stdin, stdout) {
-                        Ok(child_opt) => previous_command = child_opt,
+                        Ok(child_opt) => child_opt,
                         Err(err) => return Err(err),
                     }
                 }
                 _ => unimplemented!("Command {:?} not implemented for pipeline", command),
+            };
+            if let Some(child) = current_cmd.as_mut() {
+                self.wait_handle_interrupts(child)?;
             }
+            previous_cmd = current_cmd;
         }
-        if let Some(final_command) = previous_command {
-            match final_command.wait_with_output() {
-                Err(_) => Err("Pipeline command failed"),
-                Ok(output) => Ok(output),
-            }
-        } else {
-            Ok(Self::new_empty_output(0))
+        match previous_cmd {
+            Some(final_command) => final_command
+                .wait_with_output()
+                .map_err(|_| "Error waiting for output"),
+            None => Ok(Self::new_empty_output(0)),
         }
     }
 }
