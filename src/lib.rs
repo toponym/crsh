@@ -220,7 +220,7 @@ impl Crsh {
                 child.kill().expect("Error killing child process"); // sigint received, kill child
                 return Err(InterpretErr::Interrupt("SIGINT Received"));
             }
-            sleep(Duration::from_millis(100));
+            sleep(Duration::from_millis(10));
         }
     }
 
