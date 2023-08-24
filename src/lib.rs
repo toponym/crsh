@@ -57,6 +57,7 @@ impl Crsh {
 
     pub fn execute(&mut self, node: Node) -> Result<Output, String> {
         // TODO catch interrupt error here
+        self.clear_handler();
         match node {
             Node::Pipeline(commands) => self.pipeline_command(commands).map_err(|err|format!("{}",err)),
             Node::CommandSequence(command_seq) => self.command_sequence(command_seq).map_err(|err|format!("{}",err)),
@@ -64,19 +65,22 @@ impl Crsh {
         }
     }
 
+    fn clear_handler(&mut self){
+        // clear the channel with the sigint handler
+        while let Ok(_) = self.sigint_receiver.try_recv() {}
+    }
+
     fn command_sequence(&mut self, command_seq: Vec<Node>) -> Result<Output, InterpretErr> {
         let mut res = Ok(Self::new_empty_output(0));
         // TODO support command in command sequence
         for command in command_seq {
-            println!("command");
             res = match command {
                 Node::Pipeline(commands) => {
                     match self.pipeline_command(commands) {
                         Ok(output) => Ok(output),
                         Err(InterpretErr::ExitStatusFailure(_)) => Ok(Self::new_empty_output(1)),
                         Err(InterpretErr::Interrupt(_)) => Ok(Self::new_empty_output(130)),
-                        Err(InterpretErr::RuntimeError(msg)) => Err(InterpretErr::RuntimeError(msg)),
-                        
+                        Err(InterpretErr::RuntimeError(msg)) => {return Err(InterpretErr::RuntimeError(msg))},
                     }
                 },
                 _ => Err(InterpretErr::RuntimeError("Unexpected node in command sequence")),

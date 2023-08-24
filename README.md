@@ -6,15 +6,17 @@ crsh: A crab shell in Rust
 - Pipes
 - Shell builtins: `cd`, `exit`
 - Redirect stdin/stdout
+- handle SIGINT from ctrl+c
+- handle EOF (ctrl+D)
+- command sequences with `;`
 
 ## TODO
 - redirect stderr to/from files
-- signal management (e.g. SIGINT w ctrl+c)
 - environment variables (`export`, `unset`)
 - shell builtins: `history`
-- EOF (ctrl + D)
 - quoting
-- `&&`, `||`, `;`
+- `&&`, `||`
+- graceful scanning and parsing error handling
 
 ## EBNF Grammar
 ```
