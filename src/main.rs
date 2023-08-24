@@ -27,7 +27,13 @@ fn main() {
         }
         // Eval
         let scanner = Scanner::new(input);
-        let tokens = scanner.scan_tokens();
+        let tokens = match scanner.scan_tokens() {
+            Ok(scanner) => scanner,
+            Err(msg) => {
+                eprintln!("Error: {:?}", msg);
+                continue;
+            }
+        };
         let parser = Parser::new(tokens);
         if parser.is_empty() {
             continue;
