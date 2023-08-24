@@ -54,4 +54,20 @@ mod test_scanner {
         let tokens = scanner.scan_tokens();
         assert_eq!(expected[..], tokens[..]);
     }
+
+    #[test]
+    fn scan_quoted() {
+        let command = "echo \"hi!     <\n\tthere&/;\"; cat 'my bad file name'";
+        let expected = vec![
+            reg_token!("echo"),
+            reg_token!("hi!     <\n\tthere&/;"),
+            Token::CommandSeparator,
+            reg_token!("cat"),
+            reg_token!("my bad file name"),
+            Token::EOF,
+        ];
+        let scanner = Scanner::new(command.into());
+        let tokens = scanner.scan_tokens();
+        assert_eq!(expected[..], tokens[..]);
+    }
 }

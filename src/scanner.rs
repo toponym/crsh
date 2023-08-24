@@ -47,8 +47,25 @@ impl Scanner {
             '<' => advance_return!(Token::LRedirect),
             '>' => advance_return!(Token::RRedirect),
             ';' => advance_return!(Token::CommandSeparator),
+            '"' | '\'' => self.quoted_token(),
             _ => self.regular_token(),
         }
+    }
+
+    fn quoted_token(&mut self) -> Option<Token> {
+        let mut token = String::new();
+        let quote = *self.advance();
+        while !(self.is_end() || *self.peek() == quote) {
+            token.push(*self.advance());
+        }
+        self.advance();
+        if token.is_empty() {
+            panic!(
+                "Error: quoted regular token is empty. Current character: {:?}",
+                self.peek()
+            );
+        }
+        Some(Token::Regular(token))
     }
 
     fn regular_token(&mut self) -> Option<Token> {
