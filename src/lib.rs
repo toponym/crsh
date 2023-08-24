@@ -1,4 +1,5 @@
 use std::env::set_current_dir;
+use std::fmt::Display;
 use std::fs::OpenOptions;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
@@ -8,7 +9,6 @@ use std::str::FromStr;
 use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
-use std::fmt::Display;
 
 // TODO best way to handle namespaces?
 pub mod ast;
@@ -23,12 +23,12 @@ enum InterpretErr {
     ExitStatusFailure(&'static str), // for crsh builtins
 }
 
-impl Display for InterpretErr{
+impl Display for InterpretErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::RuntimeError(msg) => write!(f,"Runtime Error: {}", msg),
-            Self::Interrupt(msg) => write!(f,"Interrupt: {}", msg),
-            Self::ExitStatusFailure(msg) => write!(f,"ExitStatusFailure: {}", msg),
+            Self::RuntimeError(msg) => write!(f, "Runtime Error: {}", msg),
+            Self::Interrupt(msg) => write!(f, "Interrupt: {}", msg),
+            Self::ExitStatusFailure(msg) => write!(f, "ExitStatusFailure: {}", msg),
         }
     }
 }
@@ -59,15 +59,19 @@ impl Crsh {
         // TODO catch interrupt error here
         self.clear_handler();
         match node {
-            Node::Pipeline(commands) => self.pipeline_command(commands).map_err(|err|format!("{}",err)),
-            Node::CommandSequence(command_seq) => self.command_sequence(command_seq).map_err(|err|format!("{}",err)),
+            Node::Pipeline(commands) => self
+                .pipeline_command(commands)
+                .map_err(|err| format!("{}", err)),
+            Node::CommandSequence(command_seq) => self
+                .command_sequence(command_seq)
+                .map_err(|err| format!("{}", err)),
             _ => Err("Unexpected starting node".to_string()),
         }
     }
 
-    fn clear_handler(&mut self){
+    fn clear_handler(&mut self) {
         // clear the channel with the sigint handler
-        while let Ok(_) = self.sigint_receiver.try_recv() {}
+        while self.sigint_receiver.try_recv().is_ok() {}
     }
 
     fn command_sequence(&mut self, command_seq: Vec<Node>) -> Result<Output, InterpretErr> {
@@ -75,15 +79,17 @@ impl Crsh {
         // TODO support command in command sequence
         for command in command_seq {
             res = match command {
-                Node::Pipeline(commands) => {
-                    match self.pipeline_command(commands) {
-                        Ok(output) => Ok(output),
-                        Err(InterpretErr::ExitStatusFailure(_)) => Ok(Self::new_empty_output(1)),
-                        Err(InterpretErr::Interrupt(_)) => Ok(Self::new_empty_output(130)),
-                        Err(InterpretErr::RuntimeError(msg)) => {return Err(InterpretErr::RuntimeError(msg))},
+                Node::Pipeline(commands) => match self.pipeline_command(commands) {
+                    Ok(output) => Ok(output),
+                    Err(InterpretErr::ExitStatusFailure(_)) => Ok(Self::new_empty_output(1)),
+                    Err(InterpretErr::Interrupt(_)) => Ok(Self::new_empty_output(130)),
+                    Err(InterpretErr::RuntimeError(msg)) => {
+                        return Err(InterpretErr::RuntimeError(msg))
                     }
                 },
-                _ => Err(InterpretErr::RuntimeError("Unexpected node in command sequence")),
+                _ => Err(InterpretErr::RuntimeError(
+                    "Unexpected node in command sequence",
+                )),
             };
         }
         res
@@ -154,7 +160,7 @@ impl Crsh {
     fn cd_command(args: &[String]) -> Result<Option<Child>, InterpretErr> {
         if args.len() != 1 {
             println!("Too many directories");
-            return Err(InterpretErr::ExitStatusFailure(""))
+            return Err(InterpretErr::ExitStatusFailure(""));
         }
         let new_dir = &args[0];
         let absolute_new_dir = Path::new(&new_dir);
@@ -162,8 +168,8 @@ impl Crsh {
             Ok(_) => Ok(None),
             Err(_) => {
                 println!("Failed changing directory");
-                return Err(InterpretErr::ExitStatusFailure(""));
-            },
+                Err(InterpretErr::ExitStatusFailure(""))
+            }
         }
     }
 
@@ -179,7 +185,7 @@ impl Crsh {
                 Err(_) => {
                     println!("Didn't pass numeric argument");
                     return Err(InterpretErr::ExitStatusFailure(""));
-                },
+                }
             }
         }
         println!("exit");
