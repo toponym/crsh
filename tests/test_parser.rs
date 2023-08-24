@@ -18,7 +18,7 @@ mod tests {
         ];
         let expected = Node::Pipeline(vec![Node::Command(string_vec!("ls", "-a", "-b"), vec![])]);
         let parser = Parser::new(tokens);
-        assert_eq!(expected, parser.parse());
+        assert_eq!(expected, parser.parse().unwrap());
     }
 
     #[test]
@@ -39,7 +39,7 @@ mod tests {
         let cmd2 = Node::Command(string_vec!("wc"), vec![]);
         let expected = Node::Pipeline(vec![cmd0, cmd1, cmd2]);
         let parser = Parser::new(tokens);
-        assert_eq!(expected, parser.parse());
+        assert_eq!(expected, parser.parse().unwrap());
     }
 
     #[test]
@@ -59,7 +59,7 @@ mod tests {
         ];
         let expected = Node::Pipeline(vec![Node::Command(string_vec!("grep", "hi"), redirect_vec)]);
         let parser = Parser::new(tokens);
-        assert_eq!(expected, parser.parse());
+        assert_eq!(expected, parser.parse().unwrap());
     }
 
     #[test]
@@ -79,6 +79,6 @@ mod tests {
             redirect_vec,
         )]);
         let parser = Parser::new(tokens);
-        assert_eq!(expected, parser.parse());
+        assert_eq!(expected, parser.parse().unwrap());
     }
 }

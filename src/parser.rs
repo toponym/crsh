@@ -7,12 +7,19 @@ lazy_static! {
     static ref REGULAR_TOKEN: Token = Token::Regular("".to_string());
 }
 
+#[derive(Debug)]
+pub enum ParseError {
+    TokensNotParsed(&'static str),
+    NotExpectedToken(&'static str),
+    IndexOutOfBounds(&'static str),
+}
+
 macro_rules! unwrap_regular {
     ($x:expr) => {{
         if let Token::Regular(string) = $x {
             string
         } else {
-            panic!("Expected Regular Token")
+            return Err(ParseError::NotExpectedToken("Token is not Regular Token"));
         }
     }};
 }
@@ -27,17 +34,18 @@ impl Parser {
         Parser { tokens, curr: 0 }
     }
 
-    pub fn parse(mut self) -> Node {
-        let mut pipelines = vec![self.pipeline()];
-        while self.match_tok(&Token::CommandSeparator) {
-            pipelines.push(self.pipeline());
+    pub fn parse(mut self) -> Result<Node, ParseError> {
+        let mut pipelines = vec![self.pipeline()?];
+        while self.match_tok(&Token::CommandSeparator)? {
+            pipelines.push(self.pipeline()?);
         }
-        // TODO gracefully handle parsing errors
-        assert!(self.peek() == &Token::EOF, "Not all tokens are parsed");
+        if self.peek()? != &Token::EOF {
+            return Err(ParseError::TokensNotParsed("Not all tokens are parsed"));
+        }
         if pipelines.len() == 1 {
-            pipelines.pop().unwrap()
+            Ok(pipelines.pop().unwrap())
         } else {
-            Node::CommandSequence(pipelines)
+            Ok(Node::CommandSequence(pipelines))
         }
     }
 
@@ -45,25 +53,23 @@ impl Parser {
         self.tokens == vec![Token::EOF]
     }
 
-    fn pipeline(&mut self) -> Node {
-        let mut commands = vec![self.command()];
-        while self.match_tok(&Token::Pipe) {
-            commands.push(self.command());
+    fn pipeline(&mut self) -> Result<Node, ParseError> {
+        let mut commands = vec![self.command()?];
+        while self.match_tok(&Token::Pipe)? {
+            commands.push(self.command()?);
         }
-        Node::Pipeline(commands)
+        Ok(Node::Pipeline(commands))
     }
 
-    fn command(&mut self) -> Node {
-        // TODO improve error handling/propagation
-        // should gracefully handle parsing errors, not panic
+    fn command(&mut self) -> Result<Node, ParseError> {
         let mut command = vec![];
-        while self.check_tok(&REGULAR_TOKEN) {
+        while self.check_tok(&REGULAR_TOKEN)? {
             let string = unwrap_regular!(self.advance());
             // TODO no-copy approach instead?
             command.push(string.clone());
         }
         let mut redirect = vec![];
-        while self.check_tok(&Token::RRedirect) || self.check_tok(&Token::LRedirect) {
+        while self.check_tok(&Token::RRedirect)? || self.check_tok(&Token::LRedirect)? {
             let tok = self.advance();
             match tok {
                 Token::LRedirect => {
@@ -78,28 +84,35 @@ impl Parser {
                     Token::Regular(string) => {
                         redirect.push(Node::RedirectWrite(string.clone()));
                     }
-                    tok => panic!("Unexpected token after \">\": {:?}", tok),
+                    _ => return Err(ParseError::NotExpectedToken("Unexpected token after \">\"")),
                 },
-                _ => panic!("Error parsing command"),
+                _ => {
+                    return Err(ParseError::NotExpectedToken(
+                        "Unexpected token while attempting to match Redirect",
+                    ))
+                }
             }
         }
-        Node::Command(command, redirect)
+        Ok(Node::Command(command, redirect))
     }
 
-    fn check_tok(&self, token: &Token) -> bool {
-        discriminant(self.peek()) == discriminant(token)
+    fn check_tok(&self, token: &Token) -> Result<bool, ParseError> {
+        Ok(discriminant(self.peek()?) == discriminant(token))
     }
 
-    fn match_tok(&mut self, token: &Token) -> bool {
-        let same_enum = self.check_tok(token);
+    fn match_tok(&mut self, token: &Token) -> Result<bool, ParseError> {
+        let same_enum = self.check_tok(token)?;
         if same_enum {
             self.advance();
         }
-        same_enum
+        Ok(same_enum)
     }
 
-    fn peek(&self) -> &Token {
-        &self.tokens[self.curr]
+    fn peek(&self) -> Result<&Token, ParseError> {
+        if self.tokens.len() <= self.curr {
+            return Err(ParseError::IndexOutOfBounds("peek out of bounds"));
+        }
+        Ok(&self.tokens[self.curr])
     }
 
     fn advance(&mut self) -> &Token {

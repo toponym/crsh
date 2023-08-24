@@ -30,7 +30,7 @@ fn main() {
         let tokens = match scanner.scan_tokens() {
             Ok(scanner) => scanner,
             Err(msg) => {
-                eprintln!("Error: {:?}", msg);
+                eprintln!("Scanning error: {:?}", msg);
                 continue;
             }
         };
@@ -38,11 +38,17 @@ fn main() {
         if parser.is_empty() {
             continue;
         }
-        let ast = parser.parse();
+        let ast = match parser.parse() {
+            Ok(parser) => parser,
+            Err(msg) => {
+                eprintln!("Parsing error: {:?}", msg);
+                continue;
+            }
+        };
         match interpreter.execute(ast) {
             Ok(_) => (),
             Err(err) => {
-                eprintln!("Error: {}", err)
+                eprintln!("Execution error: {}", err)
             }
         }
     }

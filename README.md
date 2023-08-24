@@ -1,6 +1,7 @@
 # crsh
 crsh: A crab shell in Rust
 
+This is a small bash-esque shell I implemented to learn more about Rust.
 
 ## Features
 - Pipes
@@ -11,12 +12,6 @@ crsh: A crab shell in Rust
 - Command sequences with `;`
 - Quotes
 
-## TODO
-- redirect stderr to/from files
-- environment variables (`export`, `unset`)
-- shell builtins: `history`
-- `&&`, `||`
-- graceful scanning and parsing error handling
 
 ## EBNF Grammar
 ```
