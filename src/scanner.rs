@@ -5,7 +5,11 @@ use std::collections::HashSet;
 lazy_static! {
     static ref SPECIAL_CHARACTERS: HashSet<char> = "$'\"\\#=[]!><|;{}()*?~&".chars().collect();
 }
-
+#[derive(Debug)]
+pub enum ScanError {
+    EmptyToken(&'static str),
+    IndexOutOfBounds(&'static str),
+}
 pub struct Scanner {
     chars: Vec<char>,
     curr: usize,
@@ -21,26 +25,26 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(mut self) -> Vec<Token> {
+    pub fn scan_tokens(mut self) -> Result<Vec<Token>, ScanError> {
         while !self.is_end() {
-            let token_opt = self.scan_token();
+            let token_opt = self.scan_token()?;
             if let Some(token) = token_opt {
                 self.tokens.push(token);
             }
         }
         self.tokens.push(Token::EOF);
-        self.tokens
+        Ok(self.tokens)
     }
 
-    fn scan_token(&mut self) -> Option<Token> {
+    fn scan_token(&mut self) -> Result<Option<Token>, ScanError> {
         macro_rules! advance_return {
             ($x:expr) => {{
-                self.advance();
-                return Some($x);
+                self.advance()?;
+                return Ok(Some($x));
             }};
         }
 
-        let chr = self.peek();
+        let chr = self.peek()?;
         match chr {
             '|' => advance_return!(Token::Pipe),
             ' ' | '\t' | '\n' | '\r' => self.whitespace(),
@@ -52,56 +56,54 @@ impl Scanner {
         }
     }
 
-    fn quoted_token(&mut self) -> Option<Token> {
+    fn quoted_token(&mut self) -> Result<Option<Token>, ScanError> {
         let mut token = String::new();
-        let quote = *self.advance();
-        while !(self.is_end() || *self.peek() == quote) {
-            token.push(*self.advance());
+        let quote = *self.advance()?;
+        while !(self.is_end() || *self.peek()? == quote) {
+            token.push(*self.advance()?);
         }
-        self.advance();
-        if token.is_empty() {
-            panic!(
-                "Error: quoted regular token is empty. Current character: {:?}",
-                self.peek()
-            );
-        }
-        Some(Token::Regular(token))
+        self.advance()?;
+        Ok(Some(Token::Regular(token)))
     }
 
-    fn regular_token(&mut self) -> Option<Token> {
+    fn regular_token(&mut self) -> Result<Option<Token>, ScanError> {
         let mut token = String::new();
         while !(self.is_end()
-            || SPECIAL_CHARACTERS.contains(self.peek())
-            || self.peek().is_whitespace())
+            || SPECIAL_CHARACTERS.contains(self.peek()?)
+            || self.peek()?.is_whitespace())
         {
-            token.push(*self.advance());
+            token.push(*self.advance()?);
         }
         if token.is_empty() {
-            // TODO better error handling
-            panic!(
-                "Error: regular token is empty. Current character: {:?}",
-                self.peek()
-            );
+            return Err(ScanError::EmptyToken(
+                "Regular token is empty. Current character: {:?}",
+            ));
         }
-        Some(Token::Regular(token))
+        Ok(Some(Token::Regular(token)))
     }
 
-    fn whitespace(&mut self) -> Option<Token> {
-        self.advance();
-        None
+    fn whitespace(&mut self) -> Result<Option<Token>, ScanError> {
+        self.advance()?;
+        Ok(None)
     }
 
-    fn peek(&self) -> &char {
-        &self.chars[self.curr]
+    fn peek(&self) -> Result<&char, ScanError> {
+        if self.is_end() {
+            return Err(ScanError::IndexOutOfBounds("peek out of bounds"));
+        }
+        Ok(&self.chars[self.curr])
     }
 
     fn is_end(&self) -> bool {
         self.curr >= self.chars.len()
     }
 
-    fn advance(&mut self) -> &char {
+    fn advance(&mut self) -> Result<&char, ScanError> {
+        if self.is_end() {
+            return Err(ScanError::IndexOutOfBounds("peek out of bounds"));
+        }
         let curr_char = &self.chars[self.curr];
         self.curr += 1;
-        curr_char
+        Ok(curr_char)
     }
 }

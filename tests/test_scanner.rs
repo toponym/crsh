@@ -16,7 +16,7 @@ mod test_scanner {
             Token::EOF,
         ];
         let scanner = Scanner::new(command.into());
-        let tokens = scanner.scan_tokens();
+        let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(expected[..], tokens[..]);
     }
 
@@ -34,7 +34,7 @@ mod test_scanner {
             Token::EOF,
         ];
         let scanner = Scanner::new(command.into());
-        let tokens = scanner.scan_tokens();
+        let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(expected[..], tokens[..]);
     }
 
@@ -51,7 +51,7 @@ mod test_scanner {
             Token::EOF,
         ];
         let scanner = Scanner::new(command.into());
-        let tokens = scanner.scan_tokens();
+        let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(expected[..], tokens[..]);
     }
 
@@ -67,7 +67,7 @@ mod test_scanner {
             Token::EOF,
         ];
         let scanner = Scanner::new(command.into());
-        let tokens = scanner.scan_tokens();
+        let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(expected[..], tokens[..]);
     }
 }
